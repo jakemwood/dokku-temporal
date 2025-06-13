@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
+
+# Check if postgres plugin is available
+if [[ ! -d "$PLUGINS_AVAILABLE_PATH/postgres" ]]; then
+  echo "The 'postgres' plugin is required. Please install it first:"
+  echo "  dokku plugin:install https://github.com/dokku/dokku-postgres.git"
+  exit 1
+fi
+
+# Create temporal services directory
+mkdir -p "$DOKKU_ROOT/.temporal"
+
+# Make command files executable
+chmod +x "$PLUGIN_PATH/commands/"*
+chmod +x "$PLUGIN_PATH/functions"
+
+echo "Temporal plugin installed successfully!"
+echo "Usage: dokku temporal:create <service-name>"

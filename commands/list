@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
+
+source "$PLUGIN_AVAILABLE_PATH/temporal/functions"
+
+temporal-list-cmd() {
+  local cmd="temporal:list"
+  [[ "$1" == "$cmd" ]] && shift 1
+  
+  service_list
+}
+
+temporal-list-cmd "$@"

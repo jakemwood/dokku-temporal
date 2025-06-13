@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
+source "$PLUGIN_CORE_AVAILABLE_PATH/common/functions"
+source "$PLUGIN_AVAILABLE_PATH/config/functions"
+
+service_create() {
+  local SERVICE="$1"
+  local SERVICE_ROOT="$DOKKU_ROOT/.temporal"
+  local SERVICE_NAME="temporal-$SERVICE"
+  
+  [[ -z "$SERVICE" ]] && dokku_log_fail "Please specify a service name"
+  [[ -d "$SERVICE_ROOT/$SERVICE" ]] && dokku_log_fail "Service $SERVICE already exists"
+  
+  dokku_log_info2_quiet "Creating temporal service: $SERVICE"
+  
+  mkdir -p "$SERVICE_ROOT/$SERVICE"
+  
+  # Check if postgres plugin exists and create database
+  if [[ -d "$PLUGIN_AVAILABLE_PATH/postgres" ]]; then
+    dokku postgres:create "$SERVICE_NAME" >/dev/null
+    local DATABASE_URL=$(dokku postgres:info "$SERVICE_NAME" --dsn)
+  else
+    dokku_log_fail "postgres plugin is required for temporal service"
+  fi
+  
+  # Generate docker-compose.yml from template
+  local COMPOSE_FILE="$SERVICE_ROOT/$SERVICE/docker-compose.yml"
+  cp "$PLUGIN_PATH/templates/docker-compose.yml" "$COMPOSE_FILE"
+  
+  # Replace placeholders in docker-compose.yml
+  sed -i.bak "s|SERVICE_NAME|$SERVICE_NAME|g" "$COMPOSE_FILE"
+  sed -i.bak "s|DATABASE_URL|$DATABASE_URL|g" "$COMPOSE_FILE"
+  rm "$COMPOSE_FILE.bak"
+  
+  # Start the service
+  docker-compose -f "$COMPOSE_FILE" -p "$SERVICE_NAME" up -d
+  
+  dokku_log_info2 "Temporal service created: $SERVICE"
+  dokku_log_info2 "UI available at: http://localhost:8080"
+  dokku_log_info2 "gRPC endpoint: localhost:7233"
+}
+
+service_destroy() {
+  local SERVICE="$1"
+  local SERVICE_ROOT="$DOKKU_ROOT/.temporal"
+  local SERVICE_NAME="temporal-$SERVICE"
+  
+  [[ -z "$SERVICE" ]] && dokku_log_fail "Please specify a service name"
+  [[ ! -d "$SERVICE_ROOT/$SERVICE" ]] && dokku_log_fail "Service $SERVICE does not exist"
+  
+  dokku_log_info2_quiet "Destroying temporal service: $SERVICE"
+  
+  # Stop and remove containers
+  local COMPOSE_FILE="$SERVICE_ROOT/$SERVICE/docker-compose.yml"
+  if [[ -f "$COMPOSE_FILE" ]]; then
+    docker-compose -f "$COMPOSE_FILE" -p "$SERVICE_NAME" down -v
+  fi
+  
+  # Remove service directory
+  rm -rf "$SERVICE_ROOT/$SERVICE"
+  
+  # Remove postgres database
+  if [[ -d "$PLUGIN_AVAILABLE_PATH/postgres" ]]; then
+    dokku postgres:destroy "$SERVICE_NAME" --force >/dev/null 2>&1 || true
+  fi
+  
+  dokku_log_info2 "Temporal service destroyed: $SERVICE"
+}
+
+service_info() {
+  local SERVICE="$1"
+  local SERVICE_ROOT="$DOKKU_ROOT/.temporal"
+  local SERVICE_NAME="temporal-$SERVICE"
+  
+  [[ -z "$SERVICE" ]] && dokku_log_fail "Please specify a service name"
+  [[ ! -d "$SERVICE_ROOT/$SERVICE" ]] && dokku_log_fail "Service $SERVICE does not exist"
+  
+  local COMPOSE_FILE="$SERVICE_ROOT/$SERVICE/docker-compose.yml"
+  local STATUS="stopped"
+  
+  if docker-compose -f "$COMPOSE_FILE" -p "$SERVICE_NAME" ps | grep -q "Up"; then
+    STATUS="running"
+  fi
+  
+  echo "=====> $SERVICE temporal service information"
+  echo "       Status: $STATUS"
+  echo "       UI: http://localhost:8080"
+  echo "       gRPC: localhost:7233"
+  echo "       Database: $SERVICE_NAME"
+}
+
+service_list() {
+  local SERVICE_ROOT="$DOKKU_ROOT/.temporal"
+  
+  if [[ ! -d "$SERVICE_ROOT" ]]; then
+    echo "There are no temporal services"
+    return
+  fi
+  
+  echo "=====> temporal services"
+  for service in "$SERVICE_ROOT"/*; do
+    if [[ -d "$service" ]]; then
+      local SERVICE_NAME=$(basename "$service")
+      local STATUS="stopped"
+      local COMPOSE_FILE="$service/docker-compose.yml"
+      
+      if [[ -f "$COMPOSE_FILE" ]] && docker-compose -f "$COMPOSE_FILE" -p "temporal-$SERVICE_NAME" ps | grep -q "Up"; then
+        STATUS="running"
+      fi
+      
+      echo "       $SERVICE_NAME ($STATUS)"
+    fi
+  done
+}
+
+service_logs() {
+  local SERVICE="$1"
+  local SERVICE_ROOT="$DOKKU_ROOT/.temporal"
+  local SERVICE_NAME="temporal-$SERVICE"
+  
+  [[ -z "$SERVICE" ]] && dokku_log_fail "Please specify a service name"
+  [[ ! -d "$SERVICE_ROOT/$SERVICE" ]] && dokku_log_fail "Service $SERVICE does not exist"
+  
+  local COMPOSE_FILE="$SERVICE_ROOT/$SERVICE/docker-compose.yml"
+  docker-compose -f "$COMPOSE_FILE" -p "$SERVICE_NAME" logs -f
+}
+
+service_ui() {
+  local SERVICE="$1"
+  local SERVICE_ROOT="$DOKKU_ROOT/.temporal"
+  
+  [[ -z "$SERVICE" ]] && dokku_log_fail "Please specify a service name"
+  [[ ! -d "$SERVICE_ROOT/$SERVICE" ]] && dokku_log_fail "Service $SERVICE does not exist"
+  
+  echo "Temporal UI for service '$SERVICE' is available at:"
+  echo "http://localhost:8080"
+}
