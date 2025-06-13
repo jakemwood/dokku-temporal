@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
+
+case "$1" in
+  temporal:help)
+    help_content_func() {
+      declare desc="help command"
+      declare CMD="$1"
+      local plugin_name="temporal"
+      local plugin_description="$(plugin_description "$plugin_name")"
+
+      if [[ "$CMD" == "${plugin_name}:help" ]]; then
+        echo -e "Usage: dokku $plugin_name[:COMMAND]"
+        echo ''
+        echo "$plugin_description"
+        echo ''
+        echo 'Additional commands:'
+        fn-help-content | sort | column -c2 -t -s,
+      elif [[ $(ps -o command= $PPID) == *"--all"* ]]; then
+        fn-help-content
+      else
+        cat<<help_desc
+    $plugin_name, $plugin_description
+help_desc
+      fi
+    }
+
+    fn-help-content() {
+      declare desc="help content"
+      cat<<help_content
+    temporal:create <service>, Create a temporal service
+    temporal:destroy <service>, Delete the temporal service/data
+    temporal:info <service>, Print the service information
+    temporal:list, List all temporal services
+    temporal:logs <service>, Print the most recent log(s) for this service
+    temporal:ui <service>, Show the temporal ui url
+help_content
+    }
+
+    help_content_func "$@"
+    ;;
+
+  *)
+    exit "$DOKKU_NOT_IMPLEMENTED_EXIT"
+    ;;
+esac

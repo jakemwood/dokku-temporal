@@ -11,9 +11,5 @@ fi
 # Create temporal services directory
 mkdir -p "$DOKKU_ROOT/.temporal"
 
-# Make command files executable
-chmod +x "$PLUGIN_PATH/commands/"*
-chmod +x "$PLUGIN_PATH/functions"
-
 echo "Temporal plugin installed successfully!"
 echo "Usage: dokku temporal:create <service-name>"
