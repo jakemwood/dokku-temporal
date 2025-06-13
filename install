@@ -2,7 +2,7 @@
 set -eo pipefail; [[ $DOKKU_TRACE ]] && set -x
 
 # Check if postgres plugin is available
-if [[ ! -d "$PLUGINS_AVAILABLE_PATH/postgres" ]]; then
+if [[ ! -d "$PLUGIN_AVAILABLE_PATH/postgres" ]]; then
   echo "The 'postgres' plugin is required. Please install it first:"
   echo "  dokku plugin:install https://github.com/dokku/dokku-postgres.git"
   exit 1
